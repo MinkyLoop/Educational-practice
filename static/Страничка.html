@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Распознавание помещений</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.1);
+        }
+        .upload-area {
+            border: 3px dashed #cccccc;
+            padding: 40px;
+            margin: 20px 0;
+            border-radius: 8px;
+            transition: all 0.3s;
+            cursor: pointer;
+            text-align: center;
+        }
+        .upload-area:hover {
+            border-color: #4a90e2;
+            background-color: #f9f9f9;
+        }
+        #fileInfo {
+            margin: 15px 0;
+            padding: 10px;
+            background-color: #f0f7ff;
+            border-radius: 5px;
+            display: none;
+        }
+        #imagePreview {
+            max-width: 100%;
+            max-height: 400px;
+            margin: 20px auto;
+            display: none;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        #result {
+            font-size: 20px;
+            margin: 25px 0;
+            padding: 20px;
+            border-radius: 8px;
+            background-color: #e8f4fc;
+            display: none;
+            border-left: 5px solid #4a90e2;
+        }
+        .btn {
+            background-color: #4a90e2;
+            color: white;
+            padding: 12px 25px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+        .btn:hover {
+            background-color: #3a7bc8;
+        }
+        .loader {
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #4a90e2;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+            display: none;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .confidence {
+            font-size: 16px;
+            color: #666;
+            margin-top: 10px;
+        }
+        .file-name {
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        .change-file {
+            color: #4a90e2;
+            text-decoration: none;
+            margin-left: 10px;
+            cursor: pointer;
+        }
+        .change-file:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Распознавание помещений</h1>
+        <p>Загрузите фотографию помещения, и нейросеть определит его тип</p>
+        
+        <div class="upload-area" id="uploadArea">
+            <p>Нажмите или перетащите фото для загрузки</p>
+            <input type="file" id="fileInput" accept="image/*" style="display: none;">
+        </div>
+        
+        <div id="fileInfo">
+            <span class="file-name" id="fileName"></span>
+            <a class="change-file" id="changeFile">Изменить</a>
+        </div>
+        
+        <img id="imagePreview" alt="Загруженное изображение">
+        
+        <button class="btn" id="analyzeBtn" disabled>Анализировать</button>
+        
+        <div class="loader" id="loader"></div>
+        
+        <div id="result"></div>
+    </div>
+
+    <script>
+        // Элементы страницы
+        const fileInput = document.getElementById('fileInput');
+        const uploadArea = document.getElementById('uploadArea');
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        const imagePreview = document.getElementById('imagePreview');
+        const resultDiv = document.getElementById('result');
+        const loader = document.getElementById('loader');
+        const fileInfo = document.getElementById('fileInfo');
+        const fileName = document.getElementById('fileName');
+        const changeFile = document.getElementById('changeFile');
+        
+        // Обработчики событий
+        uploadArea.addEventListener('click', () => fileInput.click());
+        changeFile.addEventListener('click', resetFileInput);
+        
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFileSelection(e.target.files[0]);
+            }
+        });
+        
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.style.borderColor = '#4a90e2';
+            uploadArea.style.backgroundColor = '#f0f7ff';
+        });
+        
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.style.borderColor = '#cccccc';
+            uploadArea.style.backgroundColor = '';
+        });
+        
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.style.borderColor = '#cccccc';
+            uploadArea.style.backgroundColor = '';
+            
+            if (e.dataTransfer.files.length > 0) {
+                handleFileSelection(e.dataTransfer.files[0]);
+            }
+        });
+        
+        analyzeBtn.addEventListener('click', analyzeImage);
+        
+        // Функции
+        function handleFileSelection(file) {
+            if (!file.type.match('image.*')) {
+                alert('Пожалуйста, загрузите изображение!');
+                return;
+            }
+            
+            // Скрываем область загрузки
+            uploadArea.style.display = 'none';
+            
+            // Показываем информацию о файле
+            fileName.textContent = file.name;
+            fileInfo.style.display = 'block';
+            
+            // Показываем превью
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                imagePreview.src = e.target.result;
+                imagePreview.style.display = 'block';
+                resultDiv.style.display = 'none';
+                analyzeBtn.disabled = false;
+            };
+            reader.readAsDataURL(file);
+        }
+        
+        function resetFileInput() {
+            fileInput.value = '';
+            fileInfo.style.display = 'none';
+            imagePreview.style.display = 'none';
+            analyzeBtn.disabled = true;
+            resultDiv.style.display = 'none';
+            // Показываем область загрузки снова
+            uploadArea.style.display = 'block';
+        }
+        
+        async function analyzeImage() {
+            if (!fileInput.files.length) return;
+            
+            const file = fileInput.files[0];
+            
+            // Показываем загрузчик
+            loader.style.display = 'block';
+            analyzeBtn.disabled = true;
+            
+            try {
+                const formData = new FormData();
+                formData.append('image', file);
+                
+                // Отправляем запрос на сервер
+                const response = await fetch('http://localhost:5000/predict', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Ошибка сервера: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                // Отображаем результат
+                showResult(data.predicted_class, data.confidence);
+                
+            } catch (error) {
+                console.error('Ошибка:', error);
+                resultDiv.innerHTML = `<p style="color: #e74c3c;">Произошла ошибка: ${error.message}</p>`;
+                resultDiv.style.display = 'block';
+            } finally {
+                loader.style.display = 'none';
+                analyzeBtn.disabled = false;
+            }
+        }
+        
+        function showResult(sceneType, confidence) {
+            // Форматируем название класса (заменяем _ на пробелы и делаем первую букву заглавной)
+            const formattedType = sceneType.replace(/_/g, ' ')
+                                         .split(' ')
+                                         .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                                         .join(' ');
+            
+            
+            
+            // Отображаем результат
+            resultDiv.innerHTML = `
+                <h3>Результат распознавания:</h3>
+                <p>Тип помещения: <strong>${formattedType}</strong></p>
+            `;
+            resultDiv.style.display = 'block';
+        }
+    </script>
+</body>
+</html>
