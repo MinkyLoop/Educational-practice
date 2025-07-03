@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify, send_from_directory
-from flask_cors import CORS  # в начале server.py
+from flask_cors import CORS
 import torch
 import torch.nn.functional as F
 from torchvision import transforms
@@ -9,11 +9,9 @@ import logging
 import os
 from werkzeug.utils import secure_filename
 
-# Настройка приложения
 app = Flask(__name__, static_folder='static')
-CORS(app)  # Добавьте эту строку после создания app
+CORS(app) 
 
-# Конфигурация
 UPLOAD_FOLDER = 'uploads'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
@@ -21,11 +19,9 @@ MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs('static', exist_ok=True)
 
-# Логирование
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Классы из вашего соревнования
 CLASS_NAMES = [
 
     'airport_inside', 'artstudio', 'auditorium', 'bakery', 'bar', 'bathroom', 'bedroom', 'bookstore',
@@ -40,14 +36,14 @@ CLASS_NAMES = [
     'tv_studio', 'videostore', 'waitingroom', 'warehouse', 'winecellar'
 
 ]
-#DANILA
+
 def load_model():
     try:
-        # Определяем доступное устройство
+        
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         logger.info(f"Используется устройство: {device}")
         
-        # Загружаем модель на нужное устройство
+        
         model = torch.load('model', map_location=device)
         model.eval()
         
@@ -67,24 +63,23 @@ transform = transforms.Compose([
     transforms.ToTensor()
 
 ])
-#DANILA
+
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 @app.route('/predict', methods=['POST'])
 def predict():
-    if 'image' not in request.files:
-        return jsonify({'error': 'No image part', 'status': 'error'}), 400
+
+    if 'image' not in request.files: return jsonify({'error': 'No image part', 'status': 'error'}), 400
     
     file = request.files['image']
     
-    if file.filename == '':
-        return jsonify({'error': 'No selected file', 'status': 'error'}), 400
+    if file.filename == '': return jsonify({'error': 'No selected file', 'status': 'error'}), 400
     
-    if not allowed_file(file.filename):
-        return jsonify({'error': 'Invalid file type', 'status': 'error'}), 400
+    if not allowed_file(file.filename): return jsonify({'error': 'Invalid file type', 'status': 'error'}), 400
     
-    try:#DANILA
+    try:
+
         filename = secure_filename(file.filename)
         temp_path = os.path.join(UPLOAD_FOLDER, filename)
         file.save(temp_path)
@@ -99,34 +94,36 @@ def predict():
             return data.to(device, non_blocking=True)
         
         def predict_image(img, model):
+
             xb = to_device(img.unsqueeze(0), device)
             yb = model(xb)
             prob, preds = torch.max(yb, dim=1)
+
             return CLASS_NAMES[preds[0].item()], float(prob.item())
         
-        with torch.no_grad():
-            predicted_class, confidence = predict_image(image, model)
+        with torch.no_grad(): predicted_class, confidence = predict_image(image, model)
         
         result = {
+
             'predicted_class': predicted_class,
             'status': 'success'
+
         }
         
         os.remove(temp_path)
-        #DANILA
+        
         return jsonify(result)
         
     except Exception as e:
+
         logger.error(f"Ошибка предсказания: {str(e)}")
+        
         return jsonify({'error': str(e), 'status': 'error'}), 500
 
 @app.route('/')
-def serve_index():
-    return send_from_directory('static', 'index.html')
+def serve_index(): return send_from_directory('static', 'index.html')
 
 @app.route('/static/<path:path>')
-def serve_static(path):
-    return send_from_directory('static', path)
+def serve_static(path): return send_from_directory('static', path)
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+if __name__ == '__main__': app.run(host='0.0.0.0', port=5000, debug=True)
